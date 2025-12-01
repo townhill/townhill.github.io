@@ -2,46 +2,414 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Chris Townhill – Maths Blog</title>
-
+  <title>PolyMV: Multivariate Polynomials in Bronstein-Laurent</title>
+  
   <!-- KaTeX CSS -->
   <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-
+  
   <!-- KaTeX JS -->
   <script defer
           src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-
   <script defer
           src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
           onload="renderMathInElement(document.body);"
           integrity=""
           crossorigin="anonymous">
   </script>
-
+  
   <style>
     body {
-      max-width: 800px;
+      max-width: 900px;
       margin: 2rem auto;
-      font-family: sans-serif;
-      line-height: 1.6;
-      padding: 0 1rem;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.7;
+      padding: 0 1.5rem;
+      color: #333;
+      background: #fafafa;
     }
-    code { background: #eee; padding: 2px 4px; }
+    
+    h1 {
+      color: #2c3e50;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 0.5rem;
+    }
+    
+    h2 {
+      color: #34495e;
+      margin-top: 2rem;
+      border-bottom: 2px solid #ecf0f1;
+      padding-bottom: 0.3rem;
+    }
+    
+    h3 {
+      color: #555;
+      margin-top: 1.5rem;
+    }
+    
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.9em;
+    }
+    
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 1rem;
+      border-radius: 5px;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+    
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+    
+    .example-box {
+      background: #fff;
+      border-left: 4px solid #3498db;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 3px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .invariant {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 3px;
+    }
+    
+    .structure {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 3px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    
+    th, td {
+      border: 1px solid #ddd;
+      padding: 0.75rem;
+      text-align: left;
+    }
+    
+    th {
+      background: #3498db;
+      color: white;
+    }
+    
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    
+    .math-display {
+      margin: 1.5rem 0;
+      text-align: center;
+    }
   </style>
 </head>
-
 <body>
-  <h1>Welcome</h1>
-  <p>This is my test maths blog hosted on GitHub Pages with KaTeX.</p>
-
-  <h2>Math example</h2>
-  <p>Inline: \\( e^{i\pi} + 1 = 0 \\)</p>
-
-  <p>Displayed equation:</p>
+  <h1>PolyMV: Multivariate Polynomial Representation</h1>
+  
   <p>
-  $$\int \frac{x e^{2x}}{e^x + 4x^3} \, dx$$
+    The <code>PolyMV</code> (Polynomial Multivariate) type is the foundational data structure 
+    in the Bronstein-Laurent symbolic integration library. It represents multivariate polynomials 
+    in a <strong>recursive, canonical form</strong> that enables efficient symbolic computation.
   </p>
-
+  
+  <h2>Core Concept</h2>
+  
+  <p>
+    A multivariate polynomial like \( P(x, y, z) = x^2 + 3xy + y^2 + 2z \) is represented 
+    recursively by treating one variable as the "main" variable and the others as coefficients. 
+    For example, viewing \( P \) as a polynomial in \( x \) with coefficients in \( y \) and \( z \):
+  </p>
+  
+  <div class="math-display">
+    \[ P(x, y, z) = (1) \cdot x^2 + (3y) \cdot x^1 + (y^2 + 2z) \cdot x^0 \]
+  </div>
+  
+  <p>
+    The coefficients themselves (like \( 3y \) and \( y^2 + 2z \)) are also <code>PolyMV</code> 
+    polynomials, creating a recursive structure.
+  </p>
+  
+  <h2>Data Structure</h2>
+  
+  <div class="structure">
+    <h3>PolyMV Structure</h3>
+    <pre><code>type PolyMV struct {
+    Var   string   // Main variable (e.g., "x"); empty for constants
+    Head  *TermMV  // Linked list of terms (nil for constants)
+    Const *big.Rat // Constant term (if Var == "")
+}</code></pre>
+    
+    <h3>TermMV Structure</h3>
+    <pre><code>type TermMV struct {
+    Coeff *PolyMV // Coefficient (another PolyMV!)
+    Exp   int     // Exponent of the main variable
+    Next  *TermMV // Next term in the linked list
+}</code></pre>
+  </div>
+  
+  <h2>Canonical Invariants</h2>
+  
+  <div class="invariant">
+    <p><strong>Critical Invariants:</strong></p>
+    <ul>
+      <li><strong>Canonical Zero:</strong> <code>Var == ""</code>, <code>Head == nil</code>, <code>Const == nil</code></li>
+      <li><strong>Constant:</strong> <code>Var == ""</code>, <code>Head == nil</code>, <code>Const != nil</code></li>
+      <li><strong>Non-constant:</strong> <code>Var != ""</code>, <code>Const == nil</code>, <code>Head != nil</code></li>
+      <li><strong>Sorted Terms:</strong> Terms in <code>Head</code> are sorted by exponent in <strong>descending</strong> order</li>
+      <li><strong>No Zero Coefficients:</strong> No term has a zero coefficient</li>
+      <li><strong>No Duplicate Exponents:</strong> Each exponent appears at most once</li>
+    </ul>
+  </div>
+  
+  <h2>Examples</h2>
+  
+  <h3>Example 1: Simple Univariate Polynomial</h3>
+  
+  <p>Consider the polynomial \( P(x) = 3x^2 + 2x + 5 \):</p>
+  
+  <div class="example-box">
+    <p><strong>Representation:</strong></p>
+    <ul>
+      <li><code>Var = "x"</code></li>
+      <li><code>Head</code> points to a linked list:
+        <ul>
+          <li>Term 1: <code>Coeff = 3</code> (constant PolyMV), <code>Exp = 2</code></li>
+          <li>Term 2: <code>Coeff = 2</code> (constant PolyMV), <code>Exp = 1</code></li>
+        </ul>
+      </li>
+      <li><code>Const = nil</code> (non-constant polynomial)</li>
+    </ul>
+    <p><strong>Note:</strong> The constant term \( 5 \) would be stored in the last term's <code>Next</code> 
+    with <code>Exp = 0</code>, or handled specially depending on the implementation.</p>
+  </div>
+  
+  <h3>Example 2: Bivariate Polynomial</h3>
+  
+  <p>Consider \( P(x, y) = x^2 + 3xy + y^2 \):</p>
+  
+  <div class="math-display">
+    \[ P(x, y) = (1) \cdot x^2 + (3y) \cdot x^1 + (y^2) \cdot x^0 \]
+  </div>
+  
+  <div class="example-box">
+    <p><strong>Representation (viewed as polynomial in \( x \)):</strong></p>
+    <ul>
+      <li><code>Var = "x"</code></li>
+      <li><code>Head</code> contains:
+        <ul>
+          <li>Term 1: <code>Coeff = 1</code> (constant), <code>Exp = 2</code></li>
+          <li>Term 2: <code>Coeff = 3y</code> (PolyMV with <code>Var = "y"</code>), <code>Exp = 1</code></li>
+          <li>Term 3: <code>Coeff = y^2</code> (PolyMV with <code>Var = "y"</code>), <code>Exp = 0</code></li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+  
+  <h3>Example 3: Three Variables</h3>
+  
+  <p>Consider \( P(x, y, z) = x^2y + 3xz + 2yz \):</p>
+  
+  <div class="math-display">
+    \[ P(x, y, z) = (y) \cdot x^2 + (3z) \cdot x^1 + (2yz) \cdot x^0 \]
+  </div>
+  
+  <div class="example-box">
+    <p><strong>Representation (viewed as polynomial in \( x \)):</strong></p>
+    <ul>
+      <li><code>Var = "x"</code></li>
+      <li><code>Head</code> contains:
+        <ul>
+          <li>Term 1: <code>Coeff = y</code> (PolyMV: <code>Var = "y"</code>, <code>Head.Exp = 1</code>), <code>Exp = 2</code></li>
+          <li>Term 2: <code>Coeff = 3z</code> (PolyMV: <code>Var = "z"</code>, coefficient 3), <code>Exp = 1</code></li>
+          <li>Term 3: <code>Coeff = 2yz</code> (PolyMV in \( y \) and \( z \)), <code>Exp = 0</code></li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+  
+  <h2>Constructors</h2>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>Function</th>
+        <th>Description</th>
+        <th>Example</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>NewPolyZero()</code></td>
+        <td>Returns the canonical zero polynomial</td>
+        <td>\( 0 \)</td>
+      </tr>
+      <tr>
+        <td><code>NewPolyConst(r)</code></td>
+        <td>Creates a constant polynomial from a rational number</td>
+        <td>\( 5 \) or \( \frac{3}{2} \)</td>
+      </tr>
+      <tr>
+        <td><code>NewPolyVar(v)</code></td>
+        <td>Creates the polynomial \( v \) (i.e., \( 1 \cdot v^1 \))</td>
+        <td>\( x \)</td>
+      </tr>
+    </tbody>
+  </table>
+  
+  <h2>Recursive Nature</h2>
+  
+  <p>
+    The power of <code>PolyMV</code> lies in its recursive structure. Each coefficient 
+    in a term is itself a <code>PolyMV</code>, which can be:
+  </p>
+  
+  <ul>
+    <li>A constant (rational number)</li>
+    <li>A polynomial in another variable</li>
+    <li>A polynomial in multiple variables (nested recursively)</li>
+  </ul>
+  
+  <div class="example-box">
+    <p><strong>Example: Nested Structure</strong></p>
+    <p>For \( P(x, y, z) = x^2(y^2 + z) + x(yz) + z^2 \):</p>
+    <ul>
+      <li>Main variable: <code>"x"</code></li>
+      <li>Term \( x^2 \): coefficient is \( y^2 + z \) (a PolyMV in \( y \) and \( z \))</li>
+      <li>Term \( x^1 \): coefficient is \( yz \) (a PolyMV in \( y \) and \( z \))</li>
+      <li>Term \( x^0 \): coefficient is \( z^2 \) (a PolyMV in \( z \))</li>
+    </ul>
+  </div>
+  
+  <h2>Why This Design?</h2>
+  
+  <h3>1. Canonical Form</h3>
+  <p>
+    The invariants ensure that every polynomial has a unique representation. 
+    This makes equality testing efficient and prevents redundant computations.
+  </p>
+  
+  <h3>2. Efficient Operations</h3>
+  <p>
+    The recursive structure allows algorithms to work on one variable at a time, 
+    reducing multivariate problems to univariate ones. For example:
+  </p>
+  <ul>
+    <li>Addition: Add coefficients term-by-term</li>
+    <li>Multiplication: Use the distributive law recursively</li>
+    <li>GCD: Use the Euclidean algorithm on the main variable</li>
+  </ul>
+  
+  <h3>3. Memory Efficiency</h3>
+  <p>
+    The linked list structure avoids storing zero terms, and the recursive 
+    representation naturally handles sparse polynomials.
+  </p>
+  
+  <h2>Visual Representation</h2>
+  
+  <p>Here's how \( P(x, y) = x^2 + 3xy + y^2 \) is structured:</p>
+  
+  <div class="example-box">
+    <pre>PolyMV {
+    Var: "x"
+    Head: → TermMV {
+              Coeff: PolyMV { Const: 1 }     // Constant 1
+              Exp: 2
+              Next: → TermMV {
+                        Coeff: PolyMV {      // 3y
+                          Var: "y"
+                          Head: → TermMV {
+                                    Coeff: PolyMV { Const: 3 }
+                                    Exp: 1
+                                  }
+                        }
+                        Exp: 1
+                        Next: → TermMV {
+                                  Coeff: PolyMV {    // y²
+                                    Var: "y"
+                                    Head: → TermMV {
+                                              Coeff: PolyMV { Const: 1 }
+                                              Exp: 2
+                                            }
+                                  }
+                                  Exp: 0
+                                }
+                      }
+            }
+}</pre>
+  </div>
+  
+  <h2>Key Operations</h2>
+  
+  <p>Common operations on <code>PolyMV</code> include:</p>
+  
+  <ul>
+    <li><code>Add(p, q)</code> - Polynomial addition</li>
+    <li><code>Mul(p, q)</code> - Polynomial multiplication</li>
+    <li><code>Sub(p, q)</code> - Polynomial subtraction</li>
+    <li><code>Degree()</code> - Degree in the main variable</li>
+    <li><code>LeadingCoeff()</code> - Leading coefficient (as a PolyMV)</li>
+    <li><code>IsZero()</code> - Check if polynomial is zero</li>
+    <li><code>IsConstant()</code> - Check if polynomial is constant</li>
+  </ul>
+  
+  <h2>Use in Symbolic Integration</h2>
+  
+  <p>
+    In the Bronstein-Laurent library, <code>PolyMV</code> is used as the foundation 
+    for representing:
+  </p>
+  
+  <ul>
+    <li><strong>Rational Functions:</strong> <code>RationalFunc</code> uses <code>PolyMV</code> 
+        for both numerator and denominator</li>
+    <li><strong>Polynomials over Fields:</strong> <code>PolyOverField</code> uses 
+        <code>RationalFunc</code> coefficients, which in turn use <code>PolyMV</code></li>
+    <li><strong>Integration Algorithms:</strong> The Risch algorithm manipulates these 
+        recursive structures to determine if integrals are elementary</li>
+  </ul>
+  
+  <div class="math-display">
+    \[ \text{RationalFunc} \rightarrow \frac{\text{PolyMV}}{\text{PolyMV}} \]
+  </div>
+  
+  <div class="math-display">
+    \[ \text{PolyOverField} \rightarrow \sum_{i} \frac{\text{PolyMV}_i}{\text{PolyMV}_i} \cdot t^i \]
+  </div>
+  
+  <h2>Summary</h2>
+  
+  <p>
+    <code>PolyMV</code> provides a clean, recursive representation of multivariate polynomials 
+    that enables efficient symbolic computation. Its canonical form ensures correctness, 
+    while its structure supports the complex algorithms needed for symbolic integration 
+    in the Risch algorithm framework.
+  </p>
+  
+  <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+  
+  <p style="color: #777; font-size: 0.9em;">
+    This documentation is part of the Bronstein-Laurent symbolic integration project.
+  </p>
 </body>
 </html>
+
